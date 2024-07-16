@@ -7,13 +7,11 @@ int main(int argc, char *argv[]) {
 		      fprintf(2, "usage: sleep ticks\n");
 		          exit(1);
 			    }
-
-	    int ticks = atoi(argv[1]);
+	    int ticks = atoi(argv[1]);	//转换成数字
 	      if (ticks < 0) {
 		          fprintf(2, "sleep: ticks must be non-negative\n");
 			      exit(1);
 			        }
-
 	        sleep(ticks);
 		  exit(0);
 }
