@@ -6,6 +6,8 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
+
 
 uint64
 sys_exit(void)
@@ -94,4 +96,35 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+// lab 2.1
+uint64
+sys_trace(void)
+{
+  int n;
+  if(argint(0,&n)<0){//从用户空间获取第一个参数n，如果获取失败则返回-1
+    return -1;
+  }
+  myproc()->mask=n;
+  return 0;
+}
+//lab 2.2
+uint64
+sys_sysinfo(void)
+{
+  uint64 addr;
+  //从用户空间获取第一个参数的地址
+  if(argaddr(0, &addr)<0){
+    return -1;
+  }
+  //获取系统信息
+  struct sysinfo info;
+  info.freemem = getfreemem();
+  info.nproc = getnproc();
+  //将内核空间数据复制到用户空间的函数
+  if(copyout(myproc()->pagetable, addr, 
+            (char *)&info, sizeof(info)) < 0)
+    return -1;
+
+  return 0;
 }

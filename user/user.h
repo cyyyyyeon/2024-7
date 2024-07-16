@@ -1,6 +1,6 @@
 struct stat;
 struct rtcdate;
-
+struct sysinfo;// lab 2.2
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -23,6 +23,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int trace(int);// lab 2.1
+int sysinfo(struct sysinfo *);//lab 2.2
 
 // ulib.c
 int stat(const char*, struct stat*);

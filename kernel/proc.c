@@ -288,6 +288,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->mask=p->mask;// lab 2.1
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -653,4 +654,19 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+//lab 2.2
+uint64 
+getnproc(void)
+{
+  uint64 num;
+  struct proc *np;
+  for (num = 0, np = proc; np < &proc[NPROC]; ++np)
+  {
+    if (np->state != UNUSED) // 如果进程状态不是 UNUSED，则增加 num 的计数
+    {
+      ++num;
+    }
+  }
+  return num; // 返回活跃进程的数量
 }
