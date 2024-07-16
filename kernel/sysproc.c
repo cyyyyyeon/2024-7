@@ -81,6 +81,29 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  uint64 va;        // 用户提供的虚拟地址
+  int pagenum;      // 要检查的页数
+  uint64 abitsaddr; // 位掩码的用户空间缓冲区地址
+   if (argaddr(0, &va) < 0 || argint(1, &pagenum) < 0 || argaddr(2, &abitsaddr) < 0)
+    return -1;
+
+  uint64 maskbits = 0; // 存储位掩码的临时变量
+  struct proc *proc = myproc(); // 获取当前进程
+  // 遍历指定的页数
+  for (int i = 0; i < pagenum; i++) {
+    pte_t *pte = walk(proc->pagetable, va+i*PGSIZE, 0);//walk 函数根据虚拟地址找到对应的页表项
+    if (pte == 0)
+      panic("page not exist.");
+  //检查页表项中的访问位 (PTE_A) 是否被设置。如果访问位被设置，则更新 maskbits，在相应位置设为1
+    if (PTE_FLAGS(*pte) & PTE_A) {
+      maskbits = maskbits | (1L << i);
+    }
+    // 清除 PTE_A
+    *pte &= ~PTE_A;
+  }
+  // 将位掩码复制到用户空间
+  if (copyout(proc->pagetable, abitsaddr, (char *)&maskbits, sizeof(maskbits)) < 0)
+    panic("sys_pgacess copyout error");
   return 0;
 }
 #endif
