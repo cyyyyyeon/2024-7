@@ -124,6 +124,7 @@ panic(char *s)
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
+    backtrace();
 }
 
 void
@@ -131,4 +132,15 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void
+backtrace(void)
+{
+  printf("backtrace:\n");
+  uint64 cur_fp = r_fp(); //获取当前指针
+  while(cur_fp != PGROUNDDOWN(cur_fp)) {
+    printf("%p\n", *(uint64*)(cur_fp-8));
+    cur_fp = *(uint64*)(cur_fp - 16);
+  }
 }

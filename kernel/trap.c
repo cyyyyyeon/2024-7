@@ -66,7 +66,7 @@ usertrap(void)
 
     syscall();
   } else if((which_dev = devintr()) != 0){
-    // ok
+
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -75,11 +75,16 @@ usertrap(void)
 
   if(p->killed)
     exit(-1);
-
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
-
+ // 给进程调度
+    if (which_dev == 2) {
+      p->ticks_since_last_alarm++;
+      if (p->alarm_interval > 0 && p->ticks_since_last_alarm == p->alarm_interval) {
+        memmove(p->saved_trapframe, p->trapframe, sizeof(struct trapframe));
+        // 设置 trapframe 指向报警处理程序
+        p->trapframe->epc = p->alarm_handler;
+      }
+      yield();
+    }
   usertrapret();
 }
 
