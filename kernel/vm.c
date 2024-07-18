@@ -5,7 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
-
+#include "spinlock.h"
+#include "proc.h"
 /*
  * the kernel's page table.
  */
@@ -303,22 +304,24 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
+    pa = PTE2PA(*pte);//从 PTE 中获取物理地址
+    if(*pte & PTE_W) {
+      // 清除父进程的 PTE_W 标志位，设置 PTE_RSW 标志位表示是一个懒复制页（多个进程引用同个物理页）
+      *pte = (*pte & ~PTE_W) | PTE_RSW;
+    }
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
+    // 将物理页的引用次数增加 1
+    krefpage((void*)pa);
   }
   return 0;
 
@@ -349,6 +352,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   uint64 n, va0, pa0;
 
   while(len > 0){
+    if(uvmcheckcowpage(dstva)) // 检查每一个被写的页是否是 COW 页 lab5
+      uvmcowcopy(dstva);
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
@@ -431,4 +436,38 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+// 检查一个地址指向的页是否是懒复制页
+int uvmcheckcowpage(uint64 va) {
+  pte_t *pte;
+  struct proc *p = myproc();
+  
+  return va < p->sz // 在进程内存范围内
+    && ((pte = walk(p->pagetable, va, 0))!=0)
+    && (*pte & PTE_V) // 页表项存在
+    && (*pte & PTE_RSW); // 页是一个懒复制页
+}
+
+// 要写的时候才实复制一个懒复制页，并重新映射为可写
+int uvmcowcopy(uint64 va) {
+  pte_t *pte;
+  struct proc *p = myproc();
+  //获取虚拟地址 va 对应的页表项
+  if((pte = walk(p->pagetable, va, 0)) == 0)
+    panic("uvmcowcopy: walk");
+  
+  // 调用 kalloc.c 中的 kcopy_n_deref 方法，复制页
+  // (如果懒复制页的引用已经为 1，则不需要重新分配和复制内存页，只需清除 PTE_RSW 标记并标记 PTE_W 即可)
+  uint64 pa = PTE2PA(*pte);
+  uint64 new = (uint64)kcopy_n_deref((void*)pa); // 将一个懒复制的页引用变为一个实复制的页
+  if(new == 0)// 返回 0，表示内存不足，返回 -1。
+    return -1;
+  
+  uint64 flags = (PTE_FLAGS(*pte) | PTE_W) & ~PTE_RSW;//将 PTE_RSW 标志清除，并添加 PTE_W 标志以使其可写
+  uvmunmap(p->pagetable, PGROUNDDOWN(va), 1, 0);// 解除虚拟地址 va 的映射
+  if(mappages(p->pagetable, va, 1, new, flags) == -1) {//重新将新的物理页映射到虚拟地址 va
+    panic("uvmcowcopy: mappages");
+  }
+  return 0;
 }
