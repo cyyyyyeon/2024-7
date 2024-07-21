@@ -379,12 +379,20 @@ bmap(struct inode *ip, uint bn)
 {
   uint addr, *a;
   struct buf *bp;
-
+// 如果 bn 小于 NDIRECT（直接块的数量），说明逻辑块号在直接块范围内。
+// 检查索引节点中直接块地址数组 ip->addrs 的对应位置是否存在物理地址。
+// 如果不存在（即地址为0），调用 balloc 分配一个新的磁盘块，并将其地址保存到 ip->addrs 中。
+// 返回该物理块地址。
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
       ip->addrs[bn] = addr = balloc(ip->dev);
     return addr;
   }
+// 如果 bn 大于等于 NDIRECT，说明逻辑块号在间接块范围内。调整 bn 以适应间接块中的索引。
+// 检查索引节点中的间接块地址 ip->addrs[NDIRECT] 是否存在。如果不存在，分配一个新的间接块并将其地址保存到 ip->addrs[NDIRECT] 中。
+// 读取间接块的内容到 bp，其中保存了对实际物理块地址的引用。
+// 检查间接块中对应位置的物理块地址是否存在。如果不存在，分配一个新的物理块地址，并更新间接块中的地址。将间接块内容写入日志，以保证文件系统的可靠性。
+// 释放间接块的缓冲区，并返回物理块地址。
   bn -= NDIRECT;
 
   if(bn < NINDIRECT){
@@ -400,7 +408,37 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
+bn -= NINDIRECT;
 
+  if(bn < NINDIRECT * NINDIRECT){
+    // 二级间接块处理
+    // 首先获取一级间接块地址
+    if((addr = ip->addrs[NDIRECT+1]) == 0)
+      ip->addrs[NDIRECT+1] = addr = balloc(ip->dev);
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+
+    // 接下来计算一级间接块中的索引
+    uint index1 = bn / NINDIRECT;
+    uint index2 = bn % NINDIRECT;
+
+    // 读取一级间接块中的地址
+    if((addr = a[index1]) == 0){
+      a[index1] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+
+    // 读取二级间接块中的地址
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if((addr = a[index2]) == 0){
+      a[index2] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    return addr;
+  }
   panic("bmap: out of range");
 }
 
@@ -409,8 +447,10 @@ bmap(struct inode *ip, uint bn)
 void
 itrunc(struct inode *ip)
 {
-  int i, j;
+  int i, j,k;
   struct buf *bp;
+    struct buf *bp1,*bp2;
+
   uint *a;
 
   for(i = 0; i < NDIRECT; i++){
@@ -431,7 +471,27 @@ itrunc(struct inode *ip)
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
   }
-
+ // 释放二级间接块
+  if(ip->addrs[NDIRECT + 1]){
+    bp1 = bread(ip->dev, ip->addrs[NDIRECT + 1]);
+    a = (uint*)bp1->data;
+    for(j = 0; j < NINDIRECT; j++){
+      if(a[j]){
+        // 释放二级间接块中的每个一级间接块
+        bp2 = bread(ip->dev, a[j]);
+        uint *c = (uint*)bp2->data;
+        for(k = 0; k < NINDIRECT; k++){
+          if(c[k])
+            bfree(ip->dev, c[k]);
+        }
+        brelse(bp2);
+        bfree(ip->dev, a[j]);
+      }
+    }
+    brelse(bp1);
+    bfree(ip->dev, ip->addrs[NDIRECT + 1]);
+    ip->addrs[NDIRECT + 1] = 0;
+  }
   ip->size = 0;
   iupdate(ip);
 }
