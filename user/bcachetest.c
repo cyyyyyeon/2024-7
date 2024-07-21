@@ -28,6 +28,7 @@ createfile(char *file, int nblock)
   int i;
   
   fd = open(file, O_CREATE | O_RDWR);
+
   if(fd < 0){
     printf("createfile %s failed\n", file);
     exit(-1);
@@ -97,6 +98,7 @@ test0()
   for(int i = 0; i < NCHILD; i++){
     dir[0] = '0' + i;
     mkdir(dir);
+
     if (chdir(dir) < 0) {
       printf("chdir failed\n");
       exit(1);
