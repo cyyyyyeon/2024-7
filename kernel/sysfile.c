@@ -15,7 +15,10 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "memlayout.h"  
 
+#define max(a, b) ((a) > (b) ? (a) : (b))   
+#define min(a, b) ((a) < (b) ? (a) : (b))   
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -481,6 +484,149 @@ sys_pipe(void)
     fileclose(rf);
     fileclose(wf);
     return -1;
+  }
+  return 0;
+}
+uint64 
+sys_mmap(void) {
+  uint64 addr;
+  int len, prot, flags, offset;
+  struct file *f;
+  struct vm_area *vma = 0;
+  struct proc *p = myproc();
+  int i;
+//提取系统调用参数
+  if (argaddr(0, &addr) < 0 || argint(1, &len) < 0
+      || argint(2, &prot) < 0 || argint(3, &flags) < 0
+      || argfd(4, 0, &f) < 0 || argint(5, &offset) < 0) {
+    return -1;
+  }
+  if (flags != MAP_SHARED && flags != MAP_PRIVATE) {
+    return -1;
+  }
+// 如果使用 MAP_SHARED 标志，文件必须是可写的
+  if (flags == MAP_SHARED && f->writable == 0 && (prot & PROT_WRITE)) {
+    return -1;
+  }
+// 偏移量必须是页面大小的整数倍
+  if (len < 0 || offset < 0 || offset % PGSIZE) {
+    return -1;
+  }
+
+   // 为映射的内存分配一个 VMA
+  for (i = 0; i < NVMA; ++i) {
+    if (!p->vma[i].addr) {
+      vma = &p->vma[i];
+      break;
+    }
+  }
+  if (!vma) {
+    return -1;
+  }
+
+  // 假设 addr 始终为 0，内核选择一个页面对齐的地址来创建映射
+  addr = MMAPMINADDR;
+  for (i = 0; i < NVMA; ++i) {
+    if (p->vma[i].addr) {
+      // 获取已映射内存的最大地址  
+      addr = max(addr, p->vma[i].addr + p->vma[i].len);
+    }
+  }
+  addr = PGROUNDUP(addr);// 将地址向上对齐到页面大小
+  if (addr + len > TRAPFRAME) {// 检查是否超出允许的地址范围
+    return -1;
+  }
+  // 设置 VMA 的各个字段
+  vma->addr = addr;   
+  vma->len = len;
+  vma->prot = prot;
+  vma->flags = flags;
+  vma->offset = offset;
+  vma->f = f;
+  filedup(f);     // 增加文件的引用计数
+
+  return addr;
+}
+
+uint64 
+sys_munmap(void) {
+  uint64 addr, va;
+  int len;
+  struct proc *p = myproc();
+  struct vm_area *vma = 0;
+  uint maxsz, n, n1;
+  int i;
+
+  if (argaddr(0, &addr) < 0 || argint(1, &len) < 0) {
+    return -1;
+  }
+  if (addr % PGSIZE || len < 0) {
+    return -1;
+  }
+
+  // 遍历当前进程的 VMA 列表，找到包含 addr 和 addr + len 的 VMA。
+  //如果未找到合适的 VMA，返回错误。
+  for (i = 0; i < NVMA; ++i) {
+    if (p->vma[i].addr && addr >= p->vma[i].addr
+        && addr + len <= p->vma[i].addr + p->vma[i].len) {
+      vma = &p->vma[i];
+      break;
+    }
+  }
+  if (!vma) {
+    return -1;
+  }
+
+  if (len == 0) {
+    return 0;
+  }
+// 如果映射类型是 MAP_SHARED，则需要将脏页写回到文件。
+// 计算一次性可以写入磁盘的最大大小 maxsz。
+// 遍历映射的每一页，如果该页是脏页，则将其写回文件。
+  if ((vma->flags & MAP_SHARED)) {
+    maxsz = ((MAXOPBLOCKS - 1 - 1 - 2) / 2) * BSIZE;
+    for (va = addr; va < addr + len; va += PGSIZE) {
+      if (uvmgetdirty(p->pagetable, va) == 0) {
+        continue;
+      }
+      n = min(PGSIZE, addr + len - va);
+      for (i = 0; i < n; i += n1) {
+        n1 = min(maxsz, n - i);
+        begin_op();
+        ilock(vma->f->ip);
+        if (writei(vma->f->ip, 1, va + i, va - vma->addr + vma->offset + i, n1) != n1) {
+          iunlock(vma->f->ip);
+          end_op();
+          return -1;
+        }
+        iunlock(vma->f->ip);
+        end_op();
+      }
+    }
+  }
+  //调用 uvmunmap 将地址范围 [addr, addr + len) 的页面从页表中删除。
+  uvmunmap(p->pagetable, addr, (len - 1) / PGSIZE + 1, 1);
+// 更新 VMA 结构：
+// 如果 addr 和 len 覆盖整个 VMA，则重置 VMA 的所有字段，并关闭文件。
+// 如果 addr 覆盖 VMA 的起始部分，则调整 VMA 的起始地址和偏移量。
+// 如果 addr + len 覆盖 VMA 的末尾部分，则仅调整 VMA 的长度。
+// 如果 addr 和 len 只覆盖 VMA 的中间部分，这种情况不应该发生，调用 panic。
+  if (addr == vma->addr && len == vma->len) {
+    vma->addr = 0;
+    vma->len = 0;
+    vma->offset = 0;
+    vma->flags = 0;
+    vma->prot = 0;
+    fileclose(vma->f);
+    vma->f = 0;
+  } else if (addr == vma->addr) {
+    vma->addr += len;
+    vma->offset += len;
+    vma->len -= len;
+  } else if (addr + len == vma->addr + vma->len) {
+    vma->len -= len;
+  } else {
+    panic("unexpected munmap");
   }
   return 0;
 }

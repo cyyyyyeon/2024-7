@@ -5,6 +5,11 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"      
+#include "sleeplock.h"  
+#include "fs.h"         
+#include "file.h" 
+#define min(a, b) ((a) < (b) ? (a) : (b))
 
 struct cpu cpus[NCPU];
 
@@ -300,7 +305,13 @@ fork(void)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
-
+//复制了当前进程 p 的虚拟内存区域（VMA）到新的进程 np
+for (i = 0; i < NVMA; ++i) {
+    if (p->vma[i].addr) {
+      np->vma[i] = p->vma[i];
+      filedup(np->vma[i].f);//增加计数
+    }
+  }
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -341,9 +352,59 @@ exit(int status)
 {
   struct proc *p = myproc();
 
+    int i;
+  struct vm_area* vma;
+  uint maxsz = ((MAXOPBLOCKS - 1 - 1 - 2) / 2) * BSIZE;
+  uint64 va;
+  uint n, n1, r;
+
   if(p == initproc)
     panic("init exiting");
 
+  // 解除映射内存
+  for (i = 0; i < NVMA; ++i) {
+    if (p->vma[i].addr == 0) {
+      continue;
+    }
+    vma = &p->vma[i];
+// 检查 VMA 是否有 MAP_SHARED 标志。如果有，则需要将脏页写回文件。
+// 遍历 VMA 的每个页面地址 va。
+// 如果页面不是脏页，跳过。
+// 计算页面中需要写回的字节数 n。
+// 将页面分块写回文件，每次写入 n1 字节。
+// 调用 begin_op 和 end_op 函数进行文件系统操作的开始和结束，确保文件系统的原子性。
+// 使用 ilock 和 iunlock 锁定和解锁文件 vma->f->ip。
+// 使用 writei 函数将数据写入文件。如果写入失败，触发恐慌。
+    if ((vma->flags & MAP_SHARED)) {
+      for (va = vma->addr; va < vma->addr + vma->len; va += PGSIZE) {
+        if (uvmgetdirty(p->pagetable, va) == 0) {
+          continue;
+        }
+        n = min(PGSIZE, vma->addr + vma->len - va);
+        for (r = 0; r < n; r += n1) {
+          n1 = min(maxsz, n - i);
+          begin_op();
+          ilock(vma->f->ip);
+          if (writei(vma->f->ip, 1, va + i, va - vma->addr + vma->offset + i, n1) != n1) {
+            iunlock(vma->f->ip);
+            end_op();
+            panic("exit: writei failed");
+          }
+          iunlock(vma->f->ip);
+          end_op();
+        }
+      }
+    }
+    //解除 VMA 映射并重置
+    uvmunmap(p->pagetable, vma->addr, (vma->len - 1) / PGSIZE + 1, 1);
+    vma->addr = 0;
+    vma->len = 0;
+    vma->offset = 0;
+    vma->flags = 0;
+    vma->offset = 0;
+    fileclose(vma->f);
+    vma->f = 0;
+  }
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
     if(p->ofile[fd]){

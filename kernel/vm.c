@@ -175,9 +175,11 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      continue;
+      // panic("uvmunmap: not mapped");
     if(PTE_FLAGS(*pte) == PTE_V)
-      panic("uvmunmap: not a leaf");
+      continue;
+      // panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
@@ -431,4 +433,22 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+//函数检查给定虚拟地址 va 对应的页表条目（PTE）是否设置了脏标记（PTE_D）
+int uvmgetdirty(pagetable_t pagetable, uint64 va) {
+  pte_t *pte = walk(pagetable, va, 0);//使用 walk 函数在页表中找到对应 va 的页表条目
+  if(pte == 0) {
+    return 0;
+  }
+  return (*pte & PTE_D);
+}
+
+// 设置给定虚拟地址 va 对应的页表条目的脏标记（PTE_D）和写标记（PTE_W）
+int uvmsetdirtywrite(pagetable_t pagetable, uint64 va) {
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0) {
+    return -1;
+  }
+  *pte |= PTE_D | PTE_W;
+  return 0;
 }
