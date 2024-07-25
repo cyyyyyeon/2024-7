@@ -495,7 +495,7 @@ sys_mmap(void) {
   struct vm_area *vma = 0;
   struct proc *p = myproc();
   int i;
-//提取系统调用参数
+  //提取系统调用参数
   if (argaddr(0, &addr) < 0 || argint(1, &len) < 0
       || argint(2, &prot) < 0 || argint(3, &flags) < 0
       || argfd(4, 0, &f) < 0 || argint(5, &offset) < 0) {
@@ -504,11 +504,11 @@ sys_mmap(void) {
   if (flags != MAP_SHARED && flags != MAP_PRIVATE) {
     return -1;
   }
-// 如果使用 MAP_SHARED 标志，文件必须是可写的
+  // 如果使用 MAP_SHARED 标志，文件必须是可写的
   if (flags == MAP_SHARED && f->writable == 0 && (prot & PROT_WRITE)) {
     return -1;
   }
-// 偏移量必须是页面大小的整数倍
+  // 偏移量必须是页面大小的整数倍
   if (len < 0 || offset < 0 || offset % PGSIZE) {
     return -1;
   }

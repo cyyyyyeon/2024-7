@@ -98,6 +98,7 @@ usertrap(void)
       }
       memset(pa, 0, PGSIZE);
       ilock(vma->f->ip);
+      //从文件中读取数据到新分配的页面中
       if (readi(vma->f->ip, 0, (uint64) pa, va - vma->addr + vma->offset, PGSIZE) < 0) {
         iunlock(vma->f->ip);
         goto err;
@@ -117,14 +118,14 @@ usertrap(void)
         goto err;
       }
     }
-             }
+  }
   else if((which_dev = devintr()) != 0){
     // ok
   } else {
-  err:
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
+    err:
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
   }
 
   if(p->killed)

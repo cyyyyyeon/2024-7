@@ -305,8 +305,8 @@ fork(void)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
-//复制了当前进程 p 的虚拟内存区域（VMA）到新的进程 np
-for (i = 0; i < NVMA; ++i) {
+  //复制了当前进程 p 的虚拟内存区域（VMA）到新的进程 np
+  for (i = 0; i < NVMA; ++i) {
     if (p->vma[i].addr) {
       np->vma[i] = p->vma[i];
       filedup(np->vma[i].f);//增加计数
