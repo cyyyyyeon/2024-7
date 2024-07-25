@@ -434,18 +434,19 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 }
 
 static void re_pt(pagetable_t pagetable,int level){
-  for (int i=0;i<512;i++){
-    pte_t pte=pagetable[i];
-    if (pte & PTE_V) {
+  for (int i=0;i<512;i++){// 遍历页表项
+    pte_t pte=pagetable[i];// 获取页表项
+    if (pte & PTE_V) {// 检查页表项是否有效
       for (int j = 0; j <= level; j++) {
-        printf("..");
+        printf("..");// 根据级别打印缩进
       }
+      // 打印页表项索引、页表项值、物理地址
       printf("%d: pte %p pa %p\n", i, (uint64)pte, (uint64)PTE2PA(pte));
     }
-    //进入下一级
+    //如果是中间页表,进入下一级
     if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
-      uint64 child = PTE2PA(pte);
-      re_pt((pagetable_t)child,level+1);
+      uint64 child = PTE2PA(pte);// 获取下一级页表的物理地址
+      re_pt((pagetable_t)child,level+1); // 递归打印下一级页表
     }
   }
 }

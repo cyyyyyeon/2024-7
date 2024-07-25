@@ -84,7 +84,7 @@ sys_pgaccess(void)
   uint64 va;        // 用户提供的虚拟地址
   int pagenum;      // 要检查的页数
   uint64 abitsaddr; // 位掩码的用户空间缓冲区地址
-   if (argaddr(0, &va) < 0 || argint(1, &pagenum) < 0 || argaddr(2, &abitsaddr) < 0)
+  if (argaddr(0, &va) < 0 || argint(1, &pagenum) < 0 || argaddr(2, &abitsaddr) < 0)
     return -1;
 
   uint64 maskbits = 0; // 存储位掩码的临时变量

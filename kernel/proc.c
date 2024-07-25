@@ -126,6 +126,7 @@ found:
     release(&p->lock);
     return 0;
   }
+  //lab 3.1
   if((p->usyscallpage = (struct usyscall *)kalloc()) == 0){//尝试为当前进程p分配一块内存，分配失败，kalloc()会返回0
      freeproc(p);
     release(&p->lock);
