@@ -105,7 +105,7 @@ sys_trace(void)
   if(argint(0,&n)<0){//从用户空间获取第一个参数n，如果获取失败则返回-1
     return -1;
   }
-  myproc()->mask=n;
+  myproc()->mask=n;//myproc返回指向当前进程结构体的指针
   return 0;
 }
 //lab 2.2
@@ -121,7 +121,7 @@ sys_sysinfo(void)
   struct sysinfo info;
   info.freemem = getfreemem();
   info.nproc = getnproc();
-  //将内核空间数据复制到用户空间的函数
+  //将内核空间数据复制到用户空间
   if(copyout(myproc()->pagetable, addr, 
             (char *)&info, sizeof(info)) < 0)
     return -1;
