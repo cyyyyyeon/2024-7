@@ -78,7 +78,7 @@ kalloc(void)
 {
   struct run *r;
 
-  push_off();
+  push_off();//关闭中断
   int cpu=cpuid();
   pop_off();
 
@@ -86,12 +86,12 @@ kalloc(void)
   r = kmem[cpu].freelist;
   if(r)
     kmem[cpu].freelist = r->next;
-    else{
-      struct run* tmp;
-      for(int i=0;i<NCPU;i++){
-        if(i==cpu)
+  else{
+    struct run* tmp;
+    for(int i=0;i<NCPU;i++){
+      if(i==cpu)
         continue;//跳过当前cpu
-         acquire(&kmem[i].lock);
+      acquire(&kmem[i].lock);
       tmp = kmem[i].freelist;
       // no page to steal
       if (tmp == 0) {
@@ -118,7 +118,7 @@ kalloc(void)
     r = kmem[cpu].freelist;
     if (r)
       kmem[cpu].freelist = r->next;
-    }
+  }
   release(&kmem[cpu].lock);
 
   if(r)

@@ -84,7 +84,7 @@ bget(uint dev, uint blockno)
 {
   struct buf *b;
   int buk_id = hash(dev, blockno);
-// 获取对应桶的锁
+  // 获取对应桶的锁
   acquire(&bcache.buckets[buk_id].lock);
   // 在桶中查找是否已有缓存
   for (b = bcache.buckets[buk_id].head.next; b; b=b->next)
