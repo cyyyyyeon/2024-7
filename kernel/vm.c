@@ -317,6 +317,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       *pte = (*pte & ~PTE_W) | PTE_RSW;
     }
     flags = PTE_FLAGS(*pte);
+    //建立到物理页的映射
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
@@ -458,7 +459,7 @@ int uvmcowcopy(uint64 va) {
     panic("uvmcowcopy: walk");
   
   // 调用 kalloc.c 中的 kcopy_n_deref 方法，复制页
-  // (如果懒复制页的引用已经为 1，则不需要重新分配和复制内存页，只需清除 PTE_RSW 标记并标记 PTE_W 即可)
+  // (如果懒复制页的引用为 1，说明没有共享，只有一个进程使用，则不需要重新分配和复制内存页，只需清除 PTE_RSW 标记并标记 PTE_W 即可)
   uint64 pa = PTE2PA(*pte);
   uint64 new = (uint64)kcopy_n_deref((void*)pa); // 将一个懒复制的页引用变为一个实复制的页
   if(new == 0)// 返回 0，表示内存不足，返回 -1。
