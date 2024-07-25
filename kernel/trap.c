@@ -79,11 +79,11 @@ usertrap(void)
     if (which_dev == 2) {
       p->ticks_since_last_alarm++;
       if (p->alarm_interval > 0 && p->ticks_since_last_alarm == p->alarm_interval) {
-        memmove(p->saved_trapframe, p->trapframe, sizeof(struct trapframe));
+        memmove(p->saved_trapframe, p->trapframe, sizeof(struct trapframe));//保存进程
         // 设置 trapframe 指向报警处理程序
         p->trapframe->epc = p->alarm_handler;
       }
-      yield();
+      yield();// 让出CPU，调度其他进程
     }
   usertrapret();
 }
