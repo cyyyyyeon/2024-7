@@ -38,7 +38,7 @@ e1000_init(uint32 *xregs)
   regs[E1000_CTL] |= E1000_CTL_RST;// 复位控制寄存器
   regs[E1000_IMS] = 0; // redisable interrupts
   __sync_synchronize();
-//初始化传输环
+  //初始化传输环
   // [E1000 14.5] Transmit initialization
   memset(tx_ring, 0, sizeof(tx_ring));
   for (i = 0; i < TX_RING_SIZE; i++) {
@@ -65,7 +65,7 @@ e1000_init(uint32 *xregs)
   regs[E1000_RDH] = 0;// 设置头部指针
   regs[E1000_RDT] = RX_RING_SIZE - 1; // 设置尾部指针
   regs[E1000_RDLEN] = sizeof(rx_ring);// 设置接收环的长度
-//设置 MAC 地址和多播表
+  //设置 MAC 地址和多播表
   // filter by qemu's MAC address, 52:54:00:12:34:56
   regs[E1000_RA] = 0x12005452;//mac低32位
   regs[E1000_RA+1] = 0x5634 | (1<<31);//高16位
