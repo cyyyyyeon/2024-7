@@ -1,0 +1,9 @@
+
+xv6 kernel is booting
+
+alreadt inithart 1 starting
+hart 2 starting
+init: starting sh
+$ usertests sbrkmuch
+panic: acquire
+qemu-system-riscv64: terminating on signal 15 from pid 14001 (make)
