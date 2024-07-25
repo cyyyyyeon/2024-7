@@ -314,7 +314,7 @@ sys_open(void)
       ilock(ip);
       if(ip->type == T_SYMLINK && (omode & O_NOFOLLOW) == 0) {
         if(++symlink_depth > 10) {
-          // too many layer of symlinks, might be a loop
+          // 达到最大深度
           iunlockput(ip);
           end_op();
           return -1;
@@ -515,19 +515,19 @@ sys_symlink(void)
     return -1;
 
   begin_op();
-//创建一个新的文件，文件类型为符号链接
+  //创建一个新的文件，文件类型为符号链接
   ip = create(path, T_SYMLINK, 0, 0);
   if(ip == 0){
     end_op();
     return -1;
   }
-//将目标路径 target 写入到符号链接的第一个数据块中
+  //将目标路径 target 写入到符号链接的第一个数据块中
   // use the first data block to store target path.
   if(writei(ip, 0, (uint64)target, 0, strlen(target)) < 0) {
     end_op();
     return -1;
   }
-//解锁并释放符号链接
+  //解锁并释放符号链接
   iunlockput(ip);
 
   end_op();

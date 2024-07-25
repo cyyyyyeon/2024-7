@@ -408,7 +408,7 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
-bn -= NINDIRECT;
+  bn -= NINDIRECT;
 
   if(bn < NINDIRECT * NINDIRECT){
     // 二级间接块处理
