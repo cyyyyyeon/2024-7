@@ -97,7 +97,7 @@ thread_create(void (*func)())
   t->state = RUNNABLE;
   // YOUR CODE HERE
   t->context.ra = (uint64)func;//ra（返回地址）设置为 func，即新线程的入口函数。
-t->context.sp = (uint64)(t->stack + STACK_SIZE);  // 指向栈底  
+  t->context.sp = (uint64)(t->stack + STACK_SIZE);  // 指向栈底  
 }
 
 void 
